@@ -36,6 +36,8 @@ parser = argparse.ArgumentParser(description='Train an LPCNet model')
 
 parser.add_argument('features', metavar='<features file>', help='binary features file (float32)')
 parser.add_argument('data', metavar='<audio data file>', help='binary audio data file (uint8)')
+parser.add_argument('features_clear', metavar='<features file>', help='binary features file of clean data(float32)')
+parser.add_argument('data_clear', metavar='<audio data file>', help='binary audio data file of clean data(uint8)')
 parser.add_argument('output', metavar='<output>', help='trained model file (.h5)')
 parser.add_argument('--model', metavar='<model>', default='lpcnet', help='LPCNet model python definition (without .py)')
 group1 = parser.add_mutually_exclusive_group()
@@ -69,7 +71,7 @@ density = (0.05, 0.05, 0.2)
 if args.density_split is not None:
     density = args.density_split
 elif args.density is not None:
-    density = [0.5*args.density, 0.5*args.density, 2.0*args.density];
+    density = [0.5*args.density, 0.5*args.density, 2.0*args.density]
 
 grub_density = (1., 1., 1.)
 if args.grub_density_split is not None:
@@ -150,6 +152,9 @@ with strategy.scope():
 
 feature_file = args.features
 pcm_file = args.data     # 16 bit unsigned short PCM samples
+# 
+feature_file_clear = args.features_clear
+pcm_file_clear = args.data_clear
 frame_size = model.frame_size
 nb_features = model.nb_used_features + lpc_order
 nb_used_features = model.nb_used_features
@@ -159,16 +164,25 @@ pcm_chunk_size = frame_size*feature_chunk_size
 # u for unquantised, load 16 bit PCM samples and convert to mu-law
 
 data = np.memmap(pcm_file, dtype='int16', mode='r')
+data_clear = np.memmap(pcm_file_clear, dtype='int16', mode='r')
+
 nb_frames = (len(data)//(2*pcm_chunk_size)-1)//batch_size*batch_size
 
 features = np.memmap(feature_file, dtype='float32', mode='r')
+features_clear = np.memmap(feature_file_clear, dtype='float32', mode='r')
 
 # limit to discrete number of frames
 data = data[(4-args.lookahead)*2*frame_size:]
 data = data[:nb_frames*2*pcm_chunk_size]
 
-
 data = np.reshape(data, (nb_frames, pcm_chunk_size, 2))
+
+# do the same for clear data
+data_clear = data_clear[(4-args.lookahead)*2*frame_size:]
+data_clear = data_clear[:nb_frames*2*pcm_chunk_size]
+
+data_clear = np.reshape(data_clear, (nb_frames, pcm_chunk_size, 2))
+
 
 #print("ulaw std = ", np.std(out_exc))
 
@@ -177,9 +191,13 @@ features = np.lib.stride_tricks.as_strided(features, shape=(nb_frames, feature_c
                                            strides=(feature_chunk_size*nb_features*sizeof, nb_features*sizeof, sizeof))
 #features = features[:, :, :nb_used_features]
 
+features_clear = np.lib.stride_tricks.as_strided(features_clear, shape=(nb_frames, feature_chunk_size+4, nb_features),
+                                           strides=(feature_chunk_size*nb_features*sizeof, nb_features*sizeof, sizeof))
+
 
 periods = (.1 + 50*features[:,:,nb_used_features-2:nb_used_features-1]+100).astype('int16')
 #periods = np.minimum(periods, 255)
+periods_clear = (.1 + 50*features_clear[:,:,nb_used_features-2:nb_used_features-1]+100).astype('int16')
 
 # dump models to disk as we go
 checkpoint = ModelCheckpoint('{}_{}_{}.h5'.format(args.output, args.grua_size, '{epoch:02d}'))
@@ -203,7 +221,7 @@ else:
 
 model.save_weights('{}_{}_initial.h5'.format(args.output, args.grua_size))
 
-loader = LPCNetLoader(data, features, periods, batch_size, e2e=flag_e2e, lookahead=args.lookahead)
+loader = LPCNetLoader(data, features, periods, data_clear, features_clear, periods_clear, batch_size, e2e=flag_e2e, lookahead=args.lookahead)
 
 callbacks = [checkpoint, sparsify, grub_sparsify]
 if args.logdir is not None:

@@ -79,7 +79,7 @@ or "causal_dc".
 
 # Note
 
-Source: [LPCNet Github demo](https://github.com/xiph/LPCNet)
+Code source: [LPCNet Github repository](https://github.com/xiph/LPCNet)
 
 The BSD licensed software is written in C and Python/Keras. For training, a GTX 1080 Ti or better is recommended.
 

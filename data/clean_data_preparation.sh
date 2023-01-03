@@ -31,4 +31,4 @@ ffmpeg -i clean_fullband/combined.wav -ac 1 -ar 16000 clean_combined_16khz.wav
 ### Make some space by deleting the temporary files
 rm -rf clean_fullband/Normalized
 rm -rf clean_fullband/Volume_regulated
-rm -rf clean_fullband/combined.wav~/Documents/DLProject/LPCNet/datasets_fullband
+rm -rf clean_fullband/combined.wav

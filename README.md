@@ -31,7 +31,7 @@ Once the training data is downloaded, place it inside the data folder:
    python3 ../training_tf2/train_lpcnet.py data/training_noise_features.f32 data/training_noise_data.s16 data/training_clean_features.f32 data/training_clean_data.s16 model_train_name
    ```
 
-# Run the model
+# Running the model
 
 1. Once the model has been trained, build the model by running the *3_build_trained_model.sh* file. It is highly recommended to set the CFLAGS environment variable to enable AVX or NEON *prior* to running this file, otherwise no vectorization will take place and the code will be very slow. On a recent x86 CPU, something like
 ```

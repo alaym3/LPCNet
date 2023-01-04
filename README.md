@@ -1,42 +1,39 @@
 # LPCNet
 
-Low complexity implementation of the WaveRNN-based LPCNet algorithm, as described in:
+The goal of this project consists in modifying and training the LPCNet model to supress noise. The original LPCNet algorithm, was described in:
 
 - J.-M. Valin, J. Skoglund, [LPCNet: Improving Neural Speech Synthesis Through Linear Prediction](https://jmvalin.ca/papers/lpcnet_icassp2019.pdf), *Proc. International Conference on Acoustics, Speech and Signal Processing (ICASSP)*, arXiv:1810.11846, 2019.
-- J.-M. Valin, U. Isik, P. Smaragdis, A. Krishnaswamy, [Neural Speech Synthesis on a Shoestring: Improving the Efficiency of LPCNet](https://jmvalin.ca/papers/improved_lpcnet.pdf), *Proc. ICASSP*, arxiv:2106.04129, 2022.
-- K. Subramani, J.-M. Valin, U. Isik, P. Smaragdis, A. Krishnaswamy, [End-to-end LPCNet: A Neural Vocoder With Fully-Differentiable LPC Estimation](https://jmvalin.ca/papers/lpcnet_end2end.pdf), *Proc. INTERSPEECH*, arxiv:2106.04129, 2022.
+- Source github reopsitory: https://github.com/xiph/LPCNet
 
-For coding/PLC applications of LPCNet, see:
+# Training data
 
-- J.-M. Valin, J. Skoglund, [A Real-Time Wideband Neural Vocoder at 1.6 kb/s Using LPCNet](https://jmvalin.ca/papers/lpcnet_codec.pdf), *Proc. INTERSPEECH*, arxiv:1903.12087, 2019.
-- J. Skoglund, J.-M. Valin, [Improving Opus Low Bit Rate Quality with Neural Speech Synthesis](https://jmvalin.ca/papers/opusnet.pdf), *Proc. INTERSPEECH*, arxiv:1905.04628, 2020.
-- J.-M. Valin, A. Mustafa, C. Montgomery, T.B. Terriberry, M. Klingbeil, P. Smaragdis, A. Krishnaswamy, [Real-Time Packet Loss Concealment With Mixed Generative and Predictive Model](https://jmvalin.ca/papers/lpcnet_plc.pdf), *Proc. INTERSPEECH*, arxiv:2205.05785, 2022.
+Suitable training material can be obtained from [Open Speech and Language Resources](https://github.com/microsoft/DNS-Challenge).  See the 
+download-dns-challenge-3.sh file for details to choose clean speech and noise training data.
 
-# Introduction
+Once the training data is downloaded, place it inside the data folder:
+- Create a clean_fullband directory to store the clean speech audio files. 
+- Create a noise_fullband directory to store the noise audio files.
 
-Work in progress software for researching low CPU complexity algorithms for speech synthesis and compression by applying Linear Prediction techniques to WaveRNN. High quality speech can be synthesised on regular CPUs (around 3 GFLOP) with SIMD support (SSE2, SSSE3, AVX, AVX2/FMA, NEON currently supported). The code also supports very low bitrate compression at 1.6 kb/s.
+# Training a model
 
-The BSD licensed software is written in C and Python/Keras. For training, a GTX 1080 Ti or better is recommended.
+1. Prepare the training data:
+- Before running the steps bellow, make sure to download and save the training data as instructed in the **Training data** section. 
+- In the data directory, run the *clean_data_preparation.sh* file to prepare the clean speech audio data for the training.
+- In the data directory, run the *noise_data_preparation.sh* file to prepare the noise audio data for the training. Note: it is possible to modify the repartition of the different SNR level by changing the *volume* parameters.
+- In the data directory, run the *final_data_preparation.sh* file to combine the clean speech to the noise.
 
-This software is an open source starting point for LPCNet/WaveRNN-based speech synthesis and coding.
+1. Extract training features for clean and noisy data: in the *TrainingFinal* directory, run *1_extract_training_features.sh* file
 
-# Using the existing software
+1. Set up a Keras system with GPU.
 
-You can build the code using:
+1. Once the features are extracted, train the model by running the following command line:
+   ```
+   python3 ../training_tf2/train_lpcnet.py data/training_noise_features.f32 data/training_noise_data.s16 data/training_clean_features.f32 data/training_clean_data.s16 model_train_name
+   ```
 
-```
-./autogen.sh
-./configure
-make
-```
-Note that the autogen.sh script is used when building from Git and will automatically download the latest model
-(models are too large to put in Git). By default, LPCNet will attempt to use 8-bit dot product instructions on AVX\*/Neon to
-speed up inference. To disable that (e.g. to avoid quantization effects when retraining), add --disable-dot-product to the
-configure script. LPCNet does not yet have a complete implementation for some of the integer operations on the ARMv7
-architecture so for now you will also need --disable-dot-product to successfully compile on 32-bit ARM.
+# Running the model
 
-It is highly recommended to set the CFLAGS environment variable to enable AVX or NEON *prior* to running configure, otherwise
-no vectorization will take place and the code will be very slow. On a recent x86 CPU, something like
+1. Once the model has been trained, build the model by running the *3_build_trained_model.sh* file. It is highly recommended to set the CFLAGS environment variable to enable AVX or NEON *prior* to running this file, otherwise no vectorization will take place and the code will be very slow. On a recent x86 CPU, something like
 ```
 export CFLAGS='-Ofast -g -march=native'
 ```
@@ -44,11 +41,9 @@ should work. On ARM, you can enable Neon with:
 ```
 export CFLAGS='-Ofast -g -mfpu=neon'
 ```
-While not strictly required, the -Ofast flag will help with auto-vectorization, especially for dot products that
-cannot be optimized without -ffast-math (which -Ofast enables). Additionally, -falign-loops=32 has been shown to
-help on x86.
+While not strictly required, the -Ofast flag will help with auto-vectorization, especially for dot products that cannot be optimized without -ffast-math (which -Ofast enables). Additionally, -falign-loops=32 has been shown to help on x86.
 
-You can test the capabilities of LPCNet using the lpcnet\_demo application. To encode a file:
+2. You can test the capabilities of LPCNet using the lpcnet\_demo application. To encode a file:
 ```
 ./lpcnet_demo -encode input.pcm compressed.bin
 ```
@@ -81,46 +76,11 @@ where error_pattern.txt is a text file with one entry per 20-ms packet, with 1 m
 noncausal_dc is the non-causal (5-ms look-ahead) with special handling for DC offsets. It's also possible to use "noncausal", "causal",
 or "causal_dc".
 
-# Training a new model
 
-This codebase is also meant for research and it is possible to train new models. These are the steps to do that:
+# Note
 
-1. Set up a Keras system with GPU.
+Code source: [LPCNet Github repository](https://github.com/xiph/LPCNet)
 
-1. Generate training data:
-   ```
-   ./dump_data -train input.s16 features.f32 data.s16
-   ```
-   where the first file contains 16 kHz 16-bit raw PCM audio (no header) and the other files are output files. This program makes several passes over the data with different filters to generate a large amount of training data.
+The BSD licensed software is written in C and Python/Keras. For training, a GTX 1080 Ti or better is recommended.
 
-1. Now that you have your files, train with:
-   ```
-   python3 training_tf2/train_lpcnet.py features.f32 data.s16 model_name
-   ```
-   and it will generate an h5 file for each iteration, with model\_name as prefix. If it stops with a
-   "Failed to allocate RNN reserve space" message try specifying a smaller --batch-size for  train\_lpcnet.py.
-
-1. You can synthesise speech with Python and your GPU card (very slow):
-   ```
-   ./dump_data -test test_input.s16 test_features.f32
-   ./training_tf2/test_lpcnet.py lpcnet_model_name.h5 test_features.f32 test.s16
-   ```
-
-1. Or with C on a CPU (C inference is much faster):
-   First extract the model files nnet\_data.h and nnet\_data.c
-   ```
-   ./training_tf2/dump_lpcnet.py lpcnet_model_name.h5
-   ```
-   and move the generated nnet\_data.\* files to the src/ directory.
-   Then you just need to rebuild the software and use lpcnet\_demo as explained above.
-
-# Speech Material for Training 
-
-Suitable training material can be obtained from [Open Speech and Language Resources](https://www.openslr.org/).  See the datasets.txt file for details on suitable training data.
-
-# Reading Further
-
-1. [LPCNet: DSP-Boosted Neural Speech Synthesis](https://people.xiph.org/~jm/demo/lpcnet/)
-1. [A Real-Time Wideband Neural Vocoder at 1.6 kb/s Using LPCNet](https://people.xiph.org/~jm/demo/lpcnet_codec/)
-1. Sample model files (check compatibility): https://media.xiph.org/lpcnet/data/ 
-
+This software is an open source starting point for LPCNet/WaveRNN-based speech synthesis and coding.
